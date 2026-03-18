@@ -57,6 +57,7 @@
       box-shadow: var(--shadow);
       padding: 22px 24px;
       margin-bottom: 16px;
+      text-align: center;
     }
 
     .eyebrow {
@@ -79,6 +80,8 @@
       margin: 0;
       color: var(--muted);
       max-width: 980px;
+      margin-left: auto;
+      margin-right: auto;
       line-height: 1.45;
       font-size: 0.95rem;
     }
@@ -175,6 +178,12 @@
     textarea:focus {
       border-color: var(--accent);
       box-shadow: var(--focus);
+    }
+
+    .input-flag {
+      border-color: var(--red) !important;
+      background: var(--red-soft) !important;
+      box-shadow: 0 0 0 3px rgba(165, 29, 45, 0.14);
     }
 
     .toggle-grid {
@@ -480,7 +489,10 @@
       <p class="eyebrow">Clinical Decision Support</p>
       <h1>Acute Pulmonary Embolism PERT Decision Tool (2026)</h1>
       <p class="hero-sub">
-        Guideline-mapped workflow for acute PE evaluation and management based on the 2026 AHA/ACC/ACCP/ACEP/CHEST/SCAI/SHM/SIR/SVM/SVN guideline. Enter clinically important findings to generate a category-based recommendation and editable PERT documentation draft.
+        Guideline-mapped workflow for acute PE evaluation and management based on the 2026 Guideline for the Evaluation and Management of Acute Pulmonary Embolism in Adults
+      </p>
+      <p class="hero-sub">
+        Enter clinically important findings to generate a category-based recommendation and editable PERT documentation draft.
       </p>
     </header>
 
@@ -810,12 +822,8 @@
               Cardiac arrest / prolonged failed ROSC
             </label>
             <label class="toggle">
-              <input id="aki" type="checkbox">
-              Acute kidney injury
-            </label>
-            <label class="toggle">
-              <input id="oliguria" type="checkbox">
-              Urine output &lt;0.5 mL/kg/hr
+              <input id="renal-hypoperfusion" type="checkbox">
+              Acute kidney injury or urine output &lt;0.5 mL/kg/hr
             </label>
             <label class="toggle">
               <input id="mental-status" type="checkbox">
@@ -834,9 +842,6 @@
               Unable to lie flat (may preclude IR-based procedures)
             </label>
           </div>
-          <p class="hint">
-            Category D1 reflects transient hypotension. Category D2 reflects normotensive shock with isolated hypoperfusion markers such as lactate &gt;2 mmol/L, AKI, urine output &lt;0.5 mL/kg/h, mental status change, cardiac index &lt;2.2 L/min/m2, MAP &lt;60 mm Hg, or increased shock score/stage.
-          </p>
         </section>
 
         <section class="card">
@@ -886,9 +891,6 @@
               </select>
             </div>
           </div>
-          <p class="hint">
-            Respiratory modifier: for category C, add R with O2 saturation &lt;90%, RR &gt;=30, or any supplemental oxygen requirement. For categories D-E, add R only with &gt;6 L NC/nonrebreather, HFNC, noninvasive ventilation, or mechanical ventilation.
-          </p>
         </section>
 
         <section class="card">
@@ -904,20 +906,12 @@
               Prior intracranial hemorrhage
             </label>
             <label class="toggle">
-              <input id="bleed-absolute-stroke" type="checkbox">
-              Ischemic stroke within 3 months
-            </label>
-            <label class="toggle">
               <input id="bleed-absolute-dissection" type="checkbox">
               Suspected or confirmed aortic dissection
             </label>
             <label class="toggle">
               <input id="bleed-absolute-neuro-surgery" type="checkbox">
-              Recent brain or spinal surgery
-            </label>
-            <label class="toggle">
-              <input id="bleed-absolute-head-trauma" type="checkbox">
-              Recent head or facial trauma
+              Brain or spinal surgery within 3 months
             </label>
             <label class="toggle">
               <input id="bleed-absolute-intracranial" type="checkbox">
@@ -926,18 +920,6 @@
           </div>
           <p class="hint">Relative bleeding risk considerations</p>
           <div class="toggle-grid">
-            <label class="toggle">
-              <input id="bleed-relative-age" type="checkbox">
-              Age &gt;75 years
-            </label>
-            <label class="toggle">
-              <input id="bleed-relative-low-weight" type="checkbox">
-              Low body weight
-            </label>
-            <label class="toggle">
-              <input id="bleed-relative-thrombocytopenia" type="checkbox">
-              Thrombocytopenia
-            </label>
             <label class="toggle">
               <input id="bleed-relative-coagulopathy" type="checkbox">
               Coagulopathy (e.g., INR &gt;1.7)
@@ -948,20 +930,21 @@
             </label>
             <label class="toggle">
               <input id="bleed-relative-recent-surgery" type="checkbox">
-              Recent major surgery, procedure, or trauma
+              Recent major surgery (within 14 days)
+            </label>
+            <label class="toggle">
+              <input id="bleed-relative-serious-trauma" type="checkbox">
+              Recent serious trauma
             </label>
             <label class="toggle">
               <input id="bleed-relative-pregnancy" type="checkbox">
-              Pregnancy or very recent childbirth
+              Pregnancy
             </label>
             <label class="toggle">
-              <input id="bleed-relative-recent-bleed" type="checkbox">
-              Recent significant nonintracranial bleeding
+              <input id="bleed-relative-gi-bleed" type="checkbox">
+              Recent gastrointestinal bleeding
             </label>
           </div>
-          <p class="hint">
-            Any absolute bleeding-risk selection suppresses thrombolysis and VA-ECMO recommendations.
-          </p>
         </section>
 
         <section class="card">
@@ -1109,21 +1092,39 @@
     const ABSOLUTE_BLEEDING_RISK_FIELDS = [
       { key: "bleedAbsoluteActive", label: "active bleeding" },
       { key: "bleedAbsoluteICh", label: "prior intracranial hemorrhage" },
-      { key: "bleedAbsoluteStroke", label: "ischemic stroke within 3 months" },
       { key: "bleedAbsoluteDissection", label: "suspected/confirmed aortic dissection" },
-      { key: "bleedAbsoluteNeuroSurgery", label: "recent brain/spinal surgery" },
-      { key: "bleedAbsoluteHeadTrauma", label: "recent head/facial trauma" },
+      { key: "bleedAbsoluteNeuroSurgery", label: "brain or spinal surgery within 3 months" },
       { key: "bleedAbsoluteIntracranial", label: "intracranial neoplasm/vascular malformation/aneurysm/structural brain disease" }
     ];
     const RELATIVE_BLEEDING_RISK_FIELDS = [
-      { key: "bleedRelativeAge", label: "age >75" },
-      { key: "bleedRelativeLowWeight", label: "low body weight" },
-      { key: "bleedRelativeThrombocytopenia", label: "thrombocytopenia" },
       { key: "bleedRelativeCoagulopathy", label: "coagulopathy" },
       { key: "bleedRelativeHypertension", label: "uncontrolled severe hypertension" },
-      { key: "bleedRelativeRecentSurgery", label: "recent major surgery/procedure/trauma" },
-      { key: "bleedRelativePregnancy", label: "pregnancy/very recent childbirth" },
-      { key: "bleedRelativeRecentBleed", label: "recent significant nonintracranial bleeding" }
+      { key: "bleedRelativeRecentSurgery", label: "recent major surgery within 14 days" },
+      { key: "bleedRelativeSeriousTrauma", label: "recent serious trauma" },
+      { key: "bleedRelativeRecentGiBleed", label: "recent gastrointestinal bleeding" },
+      { key: "bleedRelativePregnancy", label: "pregnancy" }
+    ];
+    const INPUT_VALIDATION_SPECS = [
+      { id: "weight-kg", key: "weightKg", label: "weight", min: 20, max: 350, unit: "kg" },
+      { id: "crcl", key: "crcl", label: "estimated creatinine clearance", min: 0, max: 250, unit: "mL/min" },
+      { id: "manual-score-hr", key: "manualScoreHr", label: "manual score heart rate", min: 20, max: 260, unit: "bpm" },
+      { id: "manual-score-rr", key: "manualScoreRr", label: "manual score respiratory rate", min: 6, max: 70, unit: "/min" },
+      { id: "calc-spesi-age", key: "calcSpesiAge", label: "sPESI age", min: 18, max: 120, unit: "years" },
+      { id: "calc-spesi-hr", key: "calcSpesiHr", label: "sPESI heart rate", min: 20, max: 260, unit: "bpm" },
+      { id: "calc-spesi-sbp", key: "calcSpesiSbp", label: "sPESI systolic BP", min: 40, max: 260, unit: "mm Hg" },
+      { id: "calc-spesi-sao2", key: "calcSpesiSao2", label: "sPESI O2 saturation", min: 40, max: 100, unit: "%" },
+      { id: "calc-pesi-age", key: "calcPesiAge", label: "PESI age", min: 18, max: 120, unit: "years" },
+      { id: "calc-pesi-hr", key: "calcPesiHr", label: "PESI heart rate", min: 20, max: 260, unit: "bpm" },
+      { id: "calc-pesi-sbp", key: "calcPesiSbp", label: "PESI systolic BP", min: 40, max: 260, unit: "mm Hg" },
+      { id: "calc-pesi-rr", key: "calcPesiRr", label: "PESI respiratory rate", min: 6, max: 70, unit: "/min" },
+      { id: "calc-pesi-temp", key: "calcPesiTemp", label: "PESI temperature", min: 30, max: 43, unit: "C" },
+      { id: "calc-pesi-sao2", key: "calcPesiSao2", label: "PESI O2 saturation", min: 40, max: 100, unit: "%" },
+      { id: "calc-bova-hr", key: "calcBovaHr", label: "Bova heart rate", min: 20, max: 260, unit: "bpm" },
+      { id: "calc-bova-sbp", key: "calcBovaSbp", label: "Bova systolic BP", min: 40, max: 260, unit: "mm Hg" },
+      { id: "map", key: "map", label: "MAP", min: 20, max: 180, unit: "mm Hg" },
+      { id: "lactate", key: "lactate", label: "lactate", min: 0, max: 25, unit: "mmol/L" },
+      { id: "oxygen-sat", key: "oxygenSat", label: "O2 saturation", min: 40, max: 100, unit: "%" },
+      { id: "rr", key: "rr", label: "respiratory rate", min: 6, max: 70, unit: "/min" }
     ];
 
     const aiState = {
@@ -1284,21 +1285,6 @@
       }
     }
 
-    function syncBleedingRiskDependencies() {
-      const activeAge =
-        value("score-mode") === "calc-spesi" ? numberValue("calc-spesi-age")
-        : value("score-mode") === "calc-pesi" ? numberValue("calc-pesi-age")
-        : null;
-      const ageRiskEl = document.getElementById("bleed-relative-age");
-      if (!ageRiskEl) return;
-      if (activeAge !== null) {
-        ageRiskEl.checked = activeAge > 75;
-        ageRiskEl.disabled = true;
-      } else {
-        ageRiskEl.disabled = false;
-      }
-    }
-
     function syncRenalDependencies() {
       const crcl = numberValue("crcl");
       const severeCkdEl = document.getElementById("severe-ckd");
@@ -1405,6 +1391,36 @@
         absolute: selectedRiskLabels(ABSOLUTE_BLEEDING_RISK_FIELDS, data),
         relative: selectedRiskLabels(RELATIVE_BLEEDING_RISK_FIELDS, data)
       };
+    }
+
+    function formatValidationBound(value) {
+      return Number.isInteger(value) ? `${value}` : `${value}`;
+    }
+
+    function fieldIsVisible(el) {
+      return !!el && !el.closest("[hidden]");
+    }
+
+    function applyInputValidationFlags(data) {
+      const warnings = [];
+      INPUT_VALIDATION_SPECS.forEach((spec) => {
+        const el = document.getElementById(spec.id);
+        if (!el) return;
+        el.classList.remove("input-flag");
+        el.removeAttribute("aria-invalid");
+        el.removeAttribute("title");
+
+        if (!fieldIsVisible(el)) return;
+        const value = data[spec.key];
+        if (value === null || value === undefined) return;
+        if (value < spec.min || value > spec.max) {
+          el.classList.add("input-flag");
+          el.setAttribute("aria-invalid", "true");
+          el.title = `Outside expected range: ${formatValidationBound(spec.min)}-${formatValidationBound(spec.max)} ${spec.unit}`;
+          warnings.push(`Verify ${spec.label}: ${value} is outside the expected physiologic/input range (${formatValidationBound(spec.min)}-${formatValidationBound(spec.max)} ${spec.unit}).`);
+        }
+      });
+      return warnings;
     }
 
     function specialConditionsSummary(flags) {
@@ -1850,7 +1866,9 @@
         summary.push("Advanced therapy: with free-floating right atrial and/or RV clot-in-transit, advanced therapies are reasonable over anticoagulation alone to reduce the risk of clinical deterioration.");
       }
 
-      if (!canAnticoag) {
+      if (data.bleedAbsoluteActive) {
+        summary.push("Anticoagulation: active bleeding is present; do not administer anticoagulation. If acute PE cannot be treated with anticoagulation, retrievable IVC filter placement can be useful to reduce the short-term incidence of recurrent PE.");
+      } else if (!canAnticoag) {
         summary.push("Anticoagulation: therapeutic anticoagulation is contraindicated; defer anticoagulation and use a non-anticoagulation pathway.");
       } else if (data.pregnancy) {
         summary.push("Anticoagulation: start enoxaparin 1 mg/kg SC every 12 hours (pregnancy-preferred); use UFH infusion if rapid reversibility is needed.");
@@ -2039,6 +2057,10 @@
         rationale.push(`Bleeding-risk profile: ${bleedingNotes.join("; ")}.`);
       }
 
+      if ((data.inputValidationWarnings || []).length) {
+        rationale.push(`Input validation flags: ${data.inputValidationWarnings.join("; ")}`);
+      }
+
       if (cls.base === "D2") {
         rationale.push("D2 classification reflects normotensive shock physiology driven by isolated hypoperfusion markers (eg, lactate >2, AKI, oliguria, mental status change, cardiac index <2.2, MAP <60, or increased shock score/stage).");
       } else if (cls.base === "D1") {
@@ -2065,7 +2087,10 @@
         alerts.push("Subsegmental-only clot burden: catheter-directed thrombectomy is unlikely to be suitable.");
       }
 
-      if (data.contraAnticoag) {
+      if (data.bleedAbsoluteActive) {
+        recommendations.push("[COR 2a] Active bleeding is present: do not administer anticoagulation. If acute PE cannot be treated with anticoagulation, retrievable IVC filter placement can be useful to reduce the short-term incidence of recurrent PE.");
+        alerts.push("Active bleeding selected: anticoagulation should be withheld.");
+      } else if (data.contraAnticoag) {
         recommendations.push("[COR 2a] Absolute anticoagulation contraindication present: defer anticoagulation and evaluate immediate retrievable IVC filter placement if clinically needed.");
         alerts.push("Absolute anticoagulation contraindication selected.");
       } else if (data.pregnancy) {
@@ -2100,6 +2125,8 @@
       if (data.relativeBleedingRisk) {
         alerts.push("Relative bleeding risk factors selected.");
       }
+
+      (data.inputValidationWarnings || []).forEach((warning) => alerts.push(warning));
 
       if (data.highBleedingRisk) {
         recommendations.push(`[Operational] In category ${cls.base} with high bleeding risk, favor non-lytic reperfusion strategies when efficacy is expected to be comparable.`);
@@ -2202,7 +2229,10 @@
         );
       const extremeLmwhWeight = data.weightKg !== null && data.weightKg > 150;
 
-      if (!canAnticoag) {
+      if (data.bleedAbsoluteActive) {
+        medication.push("Active bleeding: do not administer anticoagulation. If acute PE cannot be treated with anticoagulation, retrievable IVC filter placement can be useful to reduce the short-term incidence of recurrent PE.");
+        monitoring.push("Manage and stabilize the bleeding source, monitor hemoglobin/hemodynamics closely, and reassess when anticoagulation can be restarted.");
+      } else if (!canAnticoag) {
         medication.push("Therapeutic anticoagulation is contraindicated now; defer anticoagulants and move to filter/mechanical strategy if clinically required.");
         monitoring.push("Reassess anticoagulation contraindication at least daily and start anticoagulation as soon as bleeding risk permits.");
       } else {
@@ -2496,8 +2526,7 @@
         persistentHypotension: checked("persistent-hypotension") || value("vasopressors") !== "0",
         transientHypotension: checked("transient-hypotension"),
         cardiacArrest: checked("cardiac-arrest"),
-        aki: checked("aki"),
-        oliguria: checked("oliguria"),
+        renalHypoperfusion: checked("renal-hypoperfusion"),
         mentalStatus: checked("mental-status"),
         lowCardiacIndex: checked("low-cardiac-index"),
         shockScore: checked("shock-score"),
@@ -2511,19 +2540,15 @@
         contraAnticoag: checked("contra-anticoag"),
         bleedAbsoluteActive: checked("bleed-absolute-active"),
         bleedAbsoluteICh: checked("bleed-absolute-ich"),
-        bleedAbsoluteStroke: checked("bleed-absolute-stroke"),
         bleedAbsoluteDissection: checked("bleed-absolute-dissection"),
         bleedAbsoluteNeuroSurgery: checked("bleed-absolute-neuro-surgery"),
-        bleedAbsoluteHeadTrauma: checked("bleed-absolute-head-trauma"),
         bleedAbsoluteIntracranial: checked("bleed-absolute-intracranial"),
-        bleedRelativeAge: checked("bleed-relative-age"),
-        bleedRelativeLowWeight: checked("bleed-relative-low-weight"),
-        bleedRelativeThrombocytopenia: checked("bleed-relative-thrombocytopenia"),
         bleedRelativeCoagulopathy: checked("bleed-relative-coagulopathy"),
         bleedRelativeHypertension: checked("bleed-relative-htn"),
         bleedRelativeRecentSurgery: checked("bleed-relative-recent-surgery"),
+        bleedRelativeSeriousTrauma: checked("bleed-relative-serious-trauma"),
         bleedRelativePregnancy: checked("bleed-relative-pregnancy"),
-        bleedRelativeRecentBleed: checked("bleed-relative-recent-bleed"),
+        bleedRelativeRecentGiBleed: checked("bleed-relative-gi-bleed"),
         pregnancy: checked("pregnancy"),
         breastfeeding: checked("breastfeeding"),
         activeCancer: checked("active-cancer"),
@@ -2540,6 +2565,9 @@
         ...raw,
         ...scoreBundle,
         patientAge,
+        aki: raw.renalHypoperfusion,
+        oliguria: raw.renalHypoperfusion,
+        contraAnticoag: raw.contraAnticoag || raw.bleedAbsoluteActive,
         absoluteBleedingRisk,
         relativeBleedingRisk,
         highBleedingRisk: absoluteBleedingRisk || relativeBleedingRisk,
@@ -2550,10 +2578,10 @@
     function updateOutput() {
       updateScoreModeFields();
       syncHemodynamicDependencies();
-      syncBleedingRiskDependencies();
       syncRenalDependencies();
       syncRespiratoryInputsFromScoreInputs();
       const data = gatherData();
+      data.inputValidationWarnings = applyInputValidationFlags(data);
       const cls = classify(data);
       const pert = buildPertConsensus(data, cls);
       const bundle = buildRecommendations(data, cls);
