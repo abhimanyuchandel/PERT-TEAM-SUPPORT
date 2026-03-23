@@ -503,6 +503,9 @@
           <p class="hint">
             Optional: record a case discussion first. The captured text is scrubbed for likely identifiers and merged with key structured inputs into a copy-ready narrative for external AI tools.
           </p>
+          <p class="hint">
+            Mobile note: native phone keyboard dictation inside the text box is often more accurate than browser-based live listening. If live capture is inconsistent on your phone, tap into the narrative box and use the device microphone on the keyboard.
+          </p>
           <p class="privacy-callout">
             Reminder: during case discussion, avoid patient identifiers (name, DOB, MRN, phone, address, email, exact birth date).
           </p>
@@ -516,7 +519,7 @@
           <div class="grid score-block">
             <div class="field full">
               <label for="case-narrative">De-identified case narrative (editable)</label>
-              <textarea id="case-narrative" class="case-text" placeholder="Paste or dictate a de-identified case presentation."></textarea>
+              <textarea id="case-narrative" class="case-text" placeholder="Paste or dictate a de-identified case presentation." autocapitalize="sentences" autocorrect="on" spellcheck="true"></textarea>
             </div>
           </div>
           <p id="phi-status" class="status"></p>
@@ -1070,6 +1073,8 @@
     const phiStatusEl = document.getElementById("phi-status");
 
     const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition || null;
+    const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent || "") ||
+      (window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
     const PHI_SCRUB_PATTERNS = [
       { label: "MRN/long numeric identifier", regex: /\b\d{6,}\b/g },
       { label: "MRN label/value", regex: /\b(?:mrn|medical record number|patient id)\s*[:#=-]?\s*[A-Z0-9-]{4,}\b/gi },
@@ -1131,7 +1136,8 @@
       recognition: null,
       listening: false,
       latestScrubFindings: [],
-      interimText: ""
+      interimText: "",
+      manualStop: false
     };
 
     function value(id) {
@@ -1294,6 +1300,12 @@
       }
     }
 
+    function preferredRecognitionLanguage() {
+      const candidates = [...(navigator.languages || []), navigator.language].filter(Boolean);
+      const englishCandidate = candidates.find((item) => /^en(?:-|$)/i.test(item));
+      return englishCandidate || candidates[0] || "en-US";
+    }
+
     function setupSpeechRecognition() {
       if (!SpeechRecognitionCtor) {
         startListeningEl.disabled = true;
@@ -1303,9 +1315,12 @@
         return;
       }
       const recognition = new SpeechRecognitionCtor();
-      recognition.continuous = true;
-      recognition.interimResults = true;
-      recognition.lang = "en-US";
+      recognition.continuous = !isMobileDevice;
+      recognition.interimResults = !isMobileDevice;
+      recognition.lang = preferredRecognitionLanguage();
+      if ("maxAlternatives" in recognition) {
+        recognition.maxAlternatives = 1;
+      }
 
       recognition.onresult = (event) => {
         let finalText = "";
@@ -1336,12 +1351,30 @@
       recognition.onerror = (event) => {
         listeningStatusEl.className = "status status-warn";
         listeningStatusEl.textContent = `Microphone transcription error: ${event.error || "unknown"}.`;
+        aiState.manualStop = true;
         aiState.listening = false;
         startListeningEl.disabled = false;
         stopListeningEl.disabled = true;
       };
 
       recognition.onend = () => {
+        if (aiState.listening && !aiState.manualStop && isMobileDevice) {
+          listeningStatusEl.className = "status";
+          listeningStatusEl.textContent = "Listening... mobile microphone restarted for the next phrase.";
+          window.setTimeout(() => {
+            try {
+              recognition.start();
+            } catch (err) {
+              aiState.listening = false;
+              aiState.manualStop = true;
+              startListeningEl.disabled = false;
+              stopListeningEl.disabled = true;
+              listeningStatusEl.className = "status status-warn";
+              listeningStatusEl.textContent = `Mobile microphone restart failed: ${err.message}`;
+            }
+          }, 250);
+          return;
+        }
         aiState.listening = false;
         startListeningEl.disabled = false;
         stopListeningEl.disabled = true;
@@ -2648,12 +2681,16 @@
       if (!aiState.recognition || aiState.listening) return;
       try {
         listeningStatusEl.className = "status";
-        listeningStatusEl.textContent = "Listening... avoid patient identifiers in case discussion.";
+        listeningStatusEl.textContent = isMobileDevice
+          ? "Listening... avoid patient identifiers. On phones, speak in short phrases for best capture."
+          : "Listening... avoid patient identifiers in case discussion.";
+        aiState.manualStop = false;
         aiState.listening = true;
         startListeningEl.disabled = true;
         stopListeningEl.disabled = false;
         aiState.recognition.start();
       } catch (err) {
+        aiState.manualStop = true;
         aiState.listening = false;
         startListeningEl.disabled = false;
         stopListeningEl.disabled = true;
@@ -2664,6 +2701,7 @@
 
     stopListeningEl.addEventListener("click", () => {
       if (!aiState.recognition || !aiState.listening) return;
+      aiState.manualStop = true;
       aiState.recognition.stop();
       listeningStatusEl.className = "status";
       listeningStatusEl.textContent = "Microphone stopped.";
