@@ -885,7 +885,7 @@
             <div class="field">
               <label for="oxygen-support">Current oxygen/ventilation support</label>
               <select id="oxygen-support">
-                <option value="room-air" selected>Room air or minimal oxygen</option>
+                <option value="room-air" selected>Room air</option>
                 <option value="o2-low">≤6 L/min nasal cannula</option>
                 <option value="o2-high">&gt;6 L/min NC or non-rebreather</option>
                 <option value="hfnc">HFNC</option>
@@ -1297,6 +1297,28 @@
       if (!severeCkdEl) return;
       if (crcl !== null && crcl < 30) {
         severeCkdEl.checked = true;
+      }
+    }
+
+    function syncPregnancyDependencies(changedSource) {
+      const pregnancyEl = document.getElementById("pregnancy");
+      const bleedPregnancyEl = document.getElementById("bleed-relative-pregnancy");
+      if (!pregnancyEl || !bleedPregnancyEl) return;
+
+      if (changedSource === "pregnancy") {
+        bleedPregnancyEl.checked = pregnancyEl.checked;
+        return;
+      }
+
+      if (changedSource === "bleed-relative-pregnancy") {
+        pregnancyEl.checked = bleedPregnancyEl.checked;
+        return;
+      }
+
+      if (pregnancyEl.checked !== bleedPregnancyEl.checked) {
+        const syncedValue = pregnancyEl.checked || bleedPregnancyEl.checked;
+        pregnancyEl.checked = syncedValue;
+        bleedPregnancyEl.checked = syncedValue;
       }
     }
 
@@ -1806,6 +1828,15 @@
       return "sev-e";
     }
 
+    function lowRiskScoreThresholdsMet(data) {
+      const thresholds = [];
+      if (data.hestia !== null && data.hestia === 0) thresholds.push("Hestia 0");
+      if (data.pesi !== null && data.pesi < 86) thresholds.push("PESI <86");
+      if (data.spesi !== null && data.spesi === 0) thresholds.push("sPESI 0");
+      if (data.bova !== null && data.bova <= 4) thresholds.push("Bova <=4");
+      return thresholds;
+    }
+
     function buildPertConsensus(data, cls) {
       const summary = [];
       const actions = [];
@@ -1849,6 +1880,7 @@
         !data.pregnancy &&
         !data.breastfeeding &&
         !data.aps;
+      const lowRiskScoreThresholds = lowRiskScoreThresholdsMet(data);
       const normotensiveIntermediateHigh =
         cls.base === "C3" &&
         !data.persistentHypotension &&
@@ -1949,7 +1981,24 @@
         summary.push("Transfer: if local advanced therapies are limited, transfer to an advanced-therapy center after initial stabilization.");
       }
 
-      if (canAnticoag) {
+      if (["A", "B"].includes(cls.family) && canAnticoag) {
+        if (data.pregnancy) {
+          actions.push("[COR 1] Start therapeutic anticoagulation now with pregnancy-preferred LMWH.");
+        } else {
+          actions.push("[COR 1] Start therapeutic anticoagulation now.");
+        }
+
+        if (!cls.hasScore) {
+          actions.push("Disposition support: if disposition is being considered for outpatient or early discharge, use a validated decision tool such as Hestia, sPESI, PESI, or Bova to help identify patients suitable for home treatment.");
+        } else if (cls.lowSeverity) {
+          const scoreText = lowRiskScoreThresholds.length
+            ? ` (${lowRiskScoreThresholds.join(", ")})`
+            : "";
+          actions.push(`Disposition support: the incorporated clinical severity score${scoreText} supports an outpatient or early-discharge pathway if home-treatment criteria and rapid follow-up are met.`);
+        } else {
+          actions.push("Disposition support: the incorporated clinical severity score does not support a low-risk outpatient pathway; use observation or hospital admission for initial treatment.");
+        }
+      } else if (canAnticoag) {
         actions.push("[COR 1] Start therapeutic anticoagulation now; if parenteral therapy is used, LMWH dosing is provided in the medication section.");
       } else {
         actions.push("[Operational] Document absolute anticoagulation contraindication now and initiate a non-anticoagulation pathway.");
@@ -2218,6 +2267,7 @@
         !data.pregnancy &&
         !data.breastfeeding &&
         !data.aps;
+      const lowRiskScoreThresholds = lowRiskScoreThresholdsMet(data);
       const unstableProfile =
         ["E1", "E2"].includes(cls.base) ||
         data.persistentHypotension ||
@@ -2290,6 +2340,7 @@
           if (doacAppropriate) {
             medication.push("Oral-first option for stable lower-risk profiles: apixaban 10 mg PO twice daily for 7 days, then 5 mg PO twice daily.");
             medication.push("Alternative oral-first option: rivaroxaban 15 mg PO twice daily for 21 days, then 20 mg PO daily with food.");
+            medication.push("Rivaroxaban note: compared with apixaban, rivaroxaban has been associated with a higher rate of clinically relevant bleeding (DOI: 10.1056/NEJMoa2510703).");
           }
         }
 
@@ -2381,13 +2432,24 @@
         medication.push(`Inability to lie flat limits IR-based pathways; if reperfusion is required, favor ${data.absoluteBleedingRisk ? "urgent surgical embolectomy or another non-lytic reperfusion pathway" : "systemic thrombolysis (if eligible) or urgent surgical embolectomy pathway"}.`);
       }
 
-      monitoring.push("Continuous telemetry and pulse oximetry; trend HR, BP/MAP, oxygen need, mental status, and urine output at frequent intervals.");
-      monitoring.push("Check baseline and serial CBC, hemoglobin, platelets, creatinine/eGFR, PT/INR, and aPTT during acute therapy.");
-
-      if (c3PlusProfile) {
-        monitoring.push("Use ICU or high-acuity monitored setting with reassessment of perfusion markers at least every 4-6 hours.");
+      if (["A", "B"].includes(cls.family) && cls.hasScore && cls.lowSeverity) {
+        const scoreText = lowRiskScoreThresholds.length
+          ? ` (${lowRiskScoreThresholds.join(", ")})`
+          : "";
+        monitoring.push(`Outpatient/early-discharge pathway${scoreText}: confirm hemodynamic stability, oxygen stability, anticoagulation access, and explicit return precautions before discharge.`);
+        monitoring.push("Obtain baseline CBC, hemoglobin, platelets, and creatinine/eGFR before discharge; repeat labs only as clinically indicated by anticoagulant choice, renal function, or bleeding risk.");
+      } else if (["A", "B"].includes(cls.family) && !cls.hasScore) {
+        monitoring.push("Before disposition is finalized, confirm short-term clinical stability and complete a validated disposition tool plus home-treatment criteria if outpatient or early discharge is being considered.");
+        monitoring.push("Obtain baseline CBC, hemoglobin, platelets, and creatinine/eGFR while finalizing disposition and anticoagulation choice.");
       } else {
-        monitoring.push("Monitor for early deterioration in oxygenation or hemodynamics during the first 24 hours.");
+        monitoring.push("Continuous telemetry and pulse oximetry; trend HR, BP/MAP, oxygen need, mental status, and urine output at frequent intervals.");
+        monitoring.push("Check baseline and serial CBC, hemoglobin, platelets, creatinine/eGFR, PT/INR, and aPTT during acute therapy.");
+
+        if (c3PlusProfile) {
+          monitoring.push("Use ICU or high-acuity monitored setting with reassessment of perfusion markers at least every 4-6 hours.");
+        } else {
+          monitoring.push("Monitor for early deterioration in oxygenation or hemodynamics during the first 24 hours.");
+        }
       }
 
       if (!canAnticoag) {
@@ -2431,7 +2493,11 @@
         monitoring.push("Reassess for escalation triggers at least every 4-6 hours: worsening MAP, rising lactate, increasing oxygen requirement, or new end-organ dysfunction.");
       }
 
-      monitoring.push("Plan clinical follow-up within 1 week of discharge to confirm anticoagulation access/adherence and screen for early bleeding complications.");
+      if (["A", "B"].includes(cls.family) && cls.hasScore && cls.lowSeverity) {
+        monitoring.push("Arrange rapid follow-up after discharge to confirm anticoagulation access/adherence and review for early bleeding or clinical worsening.");
+      } else {
+        monitoring.push("Plan clinical follow-up within 1 week of discharge to confirm anticoagulation access/adherence and screen for early bleeding complications.");
+      }
 
       return { medication, monitoring, notes };
     }
@@ -2580,9 +2646,9 @@
         bleedRelativeHypertension: checked("bleed-relative-htn"),
         bleedRelativeRecentSurgery: checked("bleed-relative-recent-surgery"),
         bleedRelativeSeriousTrauma: checked("bleed-relative-serious-trauma"),
-        bleedRelativePregnancy: checked("bleed-relative-pregnancy"),
+        bleedRelativePregnancy: checked("bleed-relative-pregnancy") || checked("pregnancy"),
         bleedRelativeRecentGiBleed: checked("bleed-relative-gi-bleed"),
-        pregnancy: checked("pregnancy"),
+        pregnancy: checked("pregnancy") || checked("bleed-relative-pregnancy"),
         breastfeeding: checked("breastfeeding"),
         activeCancer: checked("active-cancer"),
         aps: checked("aps"),
@@ -2676,6 +2742,19 @@
         updateOutput();
       });
     });
+
+    const pregnancyEl = document.getElementById("pregnancy");
+    const bleedPregnancyEl = document.getElementById("bleed-relative-pregnancy");
+    if (pregnancyEl && bleedPregnancyEl) {
+      pregnancyEl.addEventListener("change", () => {
+        syncPregnancyDependencies("pregnancy");
+        updateOutput();
+      });
+      bleedPregnancyEl.addEventListener("change", () => {
+        syncPregnancyDependencies("bleed-relative-pregnancy");
+        updateOutput();
+      });
+    }
 
     startListeningEl.addEventListener("click", () => {
       if (!aiState.recognition || aiState.listening) return;
