@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Acute PE PERT Decision Tool (2026)</title>
+  <title>Acute Pulmonary Embolism Management Decision Tool</title>
   <style>
     :root {
       --bg: #eef2ef;
@@ -79,11 +79,12 @@
     .hero-sub {
       margin: 0;
       color: var(--muted);
-      max-width: 980px;
+      max-width: none;
       margin-left: auto;
       margin-right: auto;
       line-height: 1.45;
-      font-size: 0.95rem;
+      font-size: clamp(0.78rem, 1.02vw, 0.86rem);
+      white-space: nowrap;
     }
 
     .layout {
@@ -481,6 +482,10 @@
       .hero {
         padding: 16px;
       }
+
+      .hero-sub {
+        white-space: normal;
+      }
     }
   </style>
 </head>
@@ -488,9 +493,9 @@
   <div class="shell">
     <header class="hero">
       <p class="eyebrow">Clinical Decision Support</p>
-      <h1>Acute Pulmonary Embolism PERT Decision Tool (2026)</h1>
+      <h1>Acute Pulmonary Embolism Management Decision Tool</h1>
       <p class="hero-sub">
-        Guideline-mapped workflow for acute PE evaluation and management based on the 2026 Guideline for the Evaluation and Management of Acute Pulmonary Embolism in Adults
+        Guideline-mapped workflow for acute PE evaluation and management based on the 2026 Guideline for the Evaluation and Management of Acute Pulmonary Embolism in Adults.
       </p>
       <p class="hero-sub">
         Enter clinically important findings to generate a category-based recommendation and editable PERT documentation draft.
@@ -1032,7 +1037,7 @@
         </section>
 
         <section class="section" style="display:grid; gap: 8px;">
-          <h3>PERT Documentation Draft (Editable)</h3>
+          <h3>PERT Documentation Draft</h3>
           <textarea id="plan-text"></textarea>
           <div class="toolbar">
             <button id="copy-plan" type="button" class="btn btn-primary">Copy Plan Text</button>
@@ -1042,7 +1047,7 @@
         </section>
 
         <p class="footnote">
-          Developed by Abhimanyu Chandel, MD MAS. Clinicians should not use this tool in isolation for clinical decisions; integrate with bedside judgment, local protocols, and specialist input. Source anchor: 2026 AHA/ACC/ACCP/ACEP/CHEST/SCAI/SHM/SIR/SVM/SVN acute PE guideline (DOI: 10.1161/CIR.0000000000001415).
+          Developed by Abhimanyu Chandel, MD MAS. Clinicians should not use this tool in isolation for clinical decisions; integrate with bedside judgment, local protocols, and specialist input. Source anchor: 2026 AHA/ACC/ACCP/ACEP/CHEST/SCAI/SHM/SIR/SVM/SVN acute PE guideline (DOI: 10.1161/CIR.0000000000001415). Last updated March 25, 2026.
         </p>
       </aside>
     </div>
