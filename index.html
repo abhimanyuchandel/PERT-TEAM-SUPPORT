@@ -308,6 +308,7 @@
     .sev-c { background: var(--amber-soft); border-color: #ffd59f; color: #905112; }
     .sev-d { background: var(--orange-soft); border-color: #f7c7b1; color: #983b17; }
     .sev-e { background: var(--red-soft); border-color: #f4b7c1; color: #8d1a28; }
+    .sev-u { background: #eef2f1; border-color: #c8d3cf; color: #40514a; }
 
     .overall {
       margin: 2px 0 0;
@@ -507,7 +508,7 @@
             Mobile note: native phone keyboard dictation inside the text box is often more accurate than browser-based live listening. If live capture is inconsistent on your phone, tap into the narrative box and use the device microphone on the keyboard.
           </p>
           <p class="privacy-callout">
-            Reminder: during case discussion, avoid patient identifiers (name, DOB, MRN, phone, address, email, exact birth date).
+            Reminder: during case discussion, avoid patient identifiers such as name, medical record number, birth date, and similar details.
           </p>
           <div class="toolbar">
             <button id="start-listening" type="button" class="btn btn-primary">Start Listening</button>
@@ -1725,18 +1726,16 @@
     }
 
     function classify(data) {
-      const hasScore = data.pesi !== null || data.spesi !== null || data.hestia !== null || data.bova !== null;
+      const hasScore = data.pesi !== null || data.spesi !== null || data.hestia !== null;
       const lowByPesi = data.pesi !== null && data.pesi <= 85;
       const lowBySpesi = data.spesi !== null && data.spesi === 0;
       const lowByHestia = data.hestia !== null && data.hestia === 0;
-      const lowByBova = data.bova !== null && data.bova <= 4;
-      const lowSeverity = lowByPesi || lowBySpesi || lowByHestia || lowByBova;
+      const lowSeverity = lowByPesi || lowBySpesi || lowByHestia;
 
       const elevatedByPesi = data.pesi !== null && data.pesi > 85;
       const elevatedBySpesi = data.spesi !== null && data.spesi >= 1;
       const elevatedByHestia = data.hestia !== null && data.hestia >= 1;
-      const elevatedByBova = data.bova !== null && data.bova > 4;
-      const elevatedSeverity = elevatedByPesi || elevatedBySpesi || elevatedByHestia || elevatedByBova;
+      const elevatedSeverity = elevatedByPesi || elevatedBySpesi || elevatedByHestia;
 
       const rvPositive = data.rvDysfunction === "yes";
       const troponinPositive = data.troponin === "yes";
@@ -1757,14 +1756,9 @@
       const needsHighSupportO2 = ["o2-high", "hfnc", "niv", "imv"].includes(data.oxygenSupport);
       const lowOxygenSaturation = data.oxygenSat !== null && data.oxygenSat < 90;
 
-      const likelyElevatedProfile =
-        elevatedSeverity ||
-        rvPositive ||
-        biomarkerPositive ||
-        (data.map !== null && data.map < 80);
       const normotensiveShock = hypoperfusionMarkers && !data.persistentHypotension && !data.cardiacArrest;
 
-      let base = "B2";
+      let base = "BC-pending";
       if ((data.symptomatic === "no" && data.incidental) || (data.symptomatic === "no" && data.confirmedPe === "confirmed")) {
         base = data.clotLocation === "subsegmental" ? "A1" : "A2";
       } else if (data.cardiacArrest || data.persistentHypotension || data.vasopressors === "2plus") {
@@ -1773,8 +1767,8 @@
         base = "D2";
       } else if (data.transientHypotension) {
         base = "D1";
-      } else if (likelyElevatedProfile) {
-        if ((rvPositive && biomarkerPositive) || (data.map !== null && data.map < 80)) {
+      } else if (elevatedSeverity) {
+        if (rvPositive && biomarkerPositive) {
           base = "C3";
         } else if (rvPositive || biomarkerPositive) {
           base = "C2";
@@ -1782,8 +1776,6 @@
           base = "C1";
         }
       } else if (lowSeverity) {
-        base = data.clotLocation === "subsegmental" ? "B1" : "B2";
-      } else {
         base = data.clotLocation === "subsegmental" ? "B1" : "B2";
       }
 
@@ -1794,8 +1786,8 @@
         significantResp = needsHighSupportO2;
       }
 
-      const category = base + (significantResp ? "R" : "");
-      const family = base.charAt(0);
+      const category = base === "BC-pending" ? "B/C pending" : base + (significantResp ? "R" : "");
+      const family = base === "BC-pending" ? "U" : base.charAt(0);
       return {
         category,
         base,
@@ -1807,11 +1799,13 @@
         biomarkerPositive,
         hypoperfusionMarkers,
         significantResp,
-        respiratoryFailure
+        respiratoryFailure,
+        pendingSeverityScore: base === "BC-pending"
       };
     }
 
     function categoryDescriptor(base) {
+      if (base === "BC-pending") return "Symptomatic stable acute PE pending clinical severity score";
       const family = base.charAt(0);
       if (family === "A") return "Asymptomatic / incidental acute PE profile";
       if (family === "B") return "Symptomatic low-risk acute PE profile";
@@ -1825,6 +1819,7 @@
       if (family === "B") return "sev-b";
       if (family === "C") return "sev-c";
       if (family === "D") return "sev-d";
+      if (family === "U") return "sev-u";
       return "sev-e";
     }
 
@@ -1881,6 +1876,7 @@
         !data.breastfeeding &&
         !data.aps;
       const lowRiskScoreThresholds = lowRiskScoreThresholdsMet(data);
+      const pendingSeverityScore = cls.pendingSeverityScore;
       const normotensiveIntermediateHigh =
         cls.base === "C3" &&
         !data.persistentHypotension &&
@@ -1897,6 +1893,8 @@
         } else {
           summary.push("Disposition: incorporated score does not confirm a low-risk outpatient pathway; reassess whether observation or admission is more appropriate.");
         }
+      } else if (pendingSeverityScore) {
+        summary.push("Disposition: symptomatic stable PE is unclassified between category B and C pending a documented PESI, sPESI, or Hestia result; complete one now to guide disposition.");
       } else if (cls.base === "C1" || cls.base === "C2") {
         summary.push("Disposition: hospital admission (telemetry or stepdown based on trajectory).");
       } else if (cls.base === "C3") {
@@ -1947,7 +1945,7 @@
         summary.push("Anticoagulation: start parenteral anticoagulation with either enoxaparin 1 mg/kg SC every 12 hours or UFH 80 units/kg IV bolus then 18 units/kg/hour infusion; favor UFH if rapid titration/reversal is needed or renal function is severely impaired.");
       } else if (severeRenal || data.cardiacArrest) {
         summary.push("Anticoagulation: start UFH 80 units/kg IV bolus, then 18 units/kg/hour infusion; if LMWH is used in severe renal impairment, use enoxaparin 1 mg/kg SC every 24 hours.");
-      } else if (data.confirmedPe === "confirmed" && ["A1", "A2", "B1", "B2", "C1", "C2"].includes(cls.base)) {
+      } else if (data.confirmedPe === "confirmed" && (["A1", "A2", "B1", "B2", "C1", "C2"].includes(cls.base) || pendingSeverityScore)) {
         summary.push("Anticoagulation: oral option apixaban 10 mg PO twice daily for 7 days, then 5 mg PO twice daily; parenteral option enoxaparin 1 mg/kg SC every 12 hours.");
       } else {
         summary.push("Anticoagulation: start enoxaparin 1 mg/kg SC every 12 hours.");
@@ -1981,7 +1979,10 @@
         summary.push("Transfer: if local advanced therapies are limited, transfer to an advanced-therapy center after initial stabilization.");
       }
 
-      if (["A", "B"].includes(cls.family) && canAnticoag) {
+      if (pendingSeverityScore && canAnticoag) {
+        actions.push("[COR 1] Start therapeutic anticoagulation now.");
+        actions.push("Disposition support: symptomatic stable PE remains unclassified between category B and C until PESI, sPESI, or Hestia is documented; complete one of these now before labeling the patient low risk or selecting an outpatient pathway.");
+      } else if (["A", "B"].includes(cls.family) && canAnticoag) {
         if (data.pregnancy) {
           actions.push("[COR 1] Start therapeutic anticoagulation now with pregnancy-preferred LMWH.");
         } else {
@@ -2041,7 +2042,9 @@
         backup.push("In the event of clinical deterioration, including worsening hypoxia or end-organ hypoperfusion, escalate immediately to the next reperfusion tier.");
       }
 
-      if (["A", "B"].includes(cls.family)) {
+      if (pendingSeverityScore) {
+        backup.push("If clinical status worsens before formal severity scoring is completed, move to monitored inpatient care and reclassify immediately.");
+      } else if (["A", "B"].includes(cls.family)) {
         backup.push("If outpatient trajectory worsens, upgrade to inpatient monitored care and reclassify PE severity.");
       } else if (cls.base === "C3") {
         backup.push("If clinical status worsens despite anticoagulation-first strategy, move to immediate reperfusion pathway.");
@@ -2109,6 +2112,7 @@
         data.vasopressors === "0" &&
         (data.map === null || data.map >= 65);
       const scoreHrTachy = data.scoreHr !== null && data.scoreHr > 110;
+      const pendingSeverityScore = cls.pendingSeverityScore;
 
       rationale.push(`Computed AHA/ACC category: ${cls.category} (${categoryDescriptor(cls.base)}).`);
       rationale.push(`Symptoms: ${data.symptomatic === "yes" ? "present" : "not reported"}; incidental discovery: ${data.incidental ? "yes" : "no"}.`);
@@ -2118,7 +2122,7 @@
       if (data.pesi !== null || data.spesi !== null || data.hestia !== null || data.bova !== null) {
         rationale.push(`Severity values used: PESI ${data.pesi ?? "n/a"}, sPESI ${data.spesi ?? "n/a"}, Hestia positives ${data.hestia ?? "n/a"}, Bova ${data.bova ?? "n/a"}.`);
       } else {
-        rationale.push("Severity score not available; classification relies more heavily on hemodynamics and RV/biomarker data.");
+        rationale.push("No PESI, sPESI, Hestia, or Bova result is documented.");
       }
 
       rationale.push(`RV dysfunction: ${yesNoUnknown(data.rvDysfunction)}; troponin: ${yesNoUnknown(data.troponin)}; BNP: ${yesNoUnknown(data.bnp)}.`);
@@ -2126,6 +2130,10 @@
       rationale.push(`Respiratory status: O2 saturation ${data.oxygenSat ?? "n/a"}%, ${data.oxygenSupport.replace("-", " ")}${data.rr !== null ? `, RR ${data.rr}` : ""}.`);
       if (data.caseNarrative.trim().length) {
         rationale.push("De-identified case narrative was provided and merged into the external-use narrative output.");
+      }
+
+      if (pendingSeverityScore) {
+        rationale.push("A symptomatic stable acute PE profile cannot be assigned to category B or C until PESI, sPESI, or Hestia is documented.");
       }
 
       if (specialSummary.length) {
@@ -2234,8 +2242,8 @@
         recommendations.push("[COR 1] If an IVC filter is placed, use a retrievable device and plan early retrieval once anticoagulation becomes feasible.");
       }
 
-      if (!cls.hasScore) {
-        alerts.push("No valid severity score available; complete the chosen score inputs.");
+      if (pendingSeverityScore) {
+        alerts.push("Category B vs C is pending; enter PESI, sPESI, or Hestia to complete category assignment.");
       }
 
       (data.scoreWarnings || []).forEach((warning) => alerts.push(warning));
@@ -2268,6 +2276,7 @@
         !data.breastfeeding &&
         !data.aps;
       const lowRiskScoreThresholds = lowRiskScoreThresholdsMet(data);
+      const pendingSeverityScore = cls.pendingSeverityScore;
       const unstableProfile =
         ["E1", "E2"].includes(cls.base) ||
         data.persistentHypotension ||
@@ -2280,7 +2289,7 @@
         (cls.base === "C3" && (data.clotTransit || data.transientHypotension || data.lactate !== null && data.lactate > 2))
       );
       const doacAppropriate =
-        (["A", "B"].includes(cls.family) || cls.base === "C1" || cls.base === "C2") &&
+        (["A", "B"].includes(cls.family) || cls.base === "C1" || cls.base === "C2" || pendingSeverityScore) &&
         data.confirmedPe === "confirmed" &&
         !data.pregnancy &&
         !data.breastfeeding &&
@@ -2432,7 +2441,10 @@
         medication.push(`Inability to lie flat limits IR-based pathways; if reperfusion is required, favor ${data.absoluteBleedingRisk ? "urgent surgical embolectomy or another non-lytic reperfusion pathway" : "systemic thrombolysis (if eligible) or urgent surgical embolectomy pathway"}.`);
       }
 
-      if (["A", "B"].includes(cls.family) && cls.hasScore && cls.lowSeverity) {
+      if (pendingSeverityScore) {
+        monitoring.push("Pending B versus C classification: complete PESI, sPESI, or Hestia now before labeling the patient low risk or choosing an outpatient pathway.");
+        monitoring.push("Reassess oxygenation, hemodynamics, and anticoagulation access while disposition is being finalized.");
+      } else if (["A", "B"].includes(cls.family) && cls.hasScore && cls.lowSeverity) {
         const scoreText = lowRiskScoreThresholds.length
           ? ` (${lowRiskScoreThresholds.join(", ")})`
           : "";
@@ -2493,7 +2505,9 @@
         monitoring.push("Reassess for escalation triggers at least every 4-6 hours: worsening MAP, rising lactate, increasing oxygen requirement, or new end-organ dysfunction.");
       }
 
-      if (["A", "B"].includes(cls.family) && cls.hasScore && cls.lowSeverity) {
+      if (pendingSeverityScore) {
+        monitoring.push("If the patient is discharged after formal risk stratification is completed, arrange rapid follow-up to confirm anticoagulation access/adherence and reassess for clinical worsening.");
+      } else if (["A", "B"].includes(cls.family) && cls.hasScore && cls.lowSeverity) {
         monitoring.push("Arrange rapid follow-up after discharge to confirm anticoagulation access/adherence and review for early bleeding or clinical worsening.");
       } else {
         monitoring.push("Plan clinical follow-up within 1 week of discharge to confirm anticoagulation access/adherence and screen for early bleeding complications.");
@@ -2677,7 +2691,6 @@
     function updateOutput() {
       updateScoreModeFields();
       syncHemodynamicDependencies();
-      syncRenalDependencies();
       syncRespiratoryInputsFromScoreInputs();
       const data = gatherData();
       data.inputValidationWarnings = applyInputValidationFlags(data);
@@ -2745,6 +2758,7 @@
 
     const pregnancyEl = document.getElementById("pregnancy");
     const bleedPregnancyEl = document.getElementById("bleed-relative-pregnancy");
+    const crclEl = document.getElementById("crcl");
     if (pregnancyEl && bleedPregnancyEl) {
       pregnancyEl.addEventListener("change", () => {
         syncPregnancyDependencies("pregnancy");
@@ -2752,6 +2766,12 @@
       });
       bleedPregnancyEl.addEventListener("change", () => {
         syncPregnancyDependencies("bleed-relative-pregnancy");
+        updateOutput();
+      });
+    }
+    if (crclEl) {
+      crclEl.addEventListener("change", () => {
+        syncRenalDependencies();
         updateOutput();
       });
     }
