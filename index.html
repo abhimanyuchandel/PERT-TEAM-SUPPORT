@@ -987,9 +987,9 @@
         <div class="risk-box">
           <div class="risk-top">
             <span class="risk-label">Calculated PE Category</span>
-            <span id="risk-badge" class="risk-badge sev-b">B2</span>
+            <span id="risk-badge" class="risk-badge sev-u">Pending</span>
           </div>
-          <p id="overall" class="overall"></p>
+          <p id="overall" class="overall">Calculated PE category pending until clinical criteria are entered.</p>
         </div>
 
         <section class="section section-overall">
@@ -1114,6 +1114,89 @@
       { key: "bleedRelativeSeriousTrauma", label: "recent serious trauma" },
       { key: "bleedRelativeRecentGiBleed", label: "recent gastrointestinal bleeding" },
       { key: "bleedRelativePregnancy", label: "pregnancy" }
+    ];
+    const CLINICAL_CRITERIA_INPUT_IDS = [
+      "symptomatic",
+      "confirmed-pe",
+      "clot-location",
+      "provoking-factor",
+      "weight-kg",
+      "crcl",
+      "incidental",
+      "imaging-delayed",
+      "clot-transit",
+      "recurrent-on-therapy",
+      "pesi",
+      "spesi",
+      "hestia",
+      "bova",
+      "manual-score-hr",
+      "manual-score-rr",
+      "calc-spesi-age",
+      "calc-spesi-hr",
+      "calc-spesi-sbp",
+      "calc-spesi-sao2",
+      "calc-spesi-cancer",
+      "calc-spesi-cardiopulm",
+      "calc-pesi-age",
+      "calc-pesi-sex",
+      "calc-pesi-hr",
+      "calc-pesi-sbp",
+      "calc-pesi-rr",
+      "calc-pesi-temp",
+      "calc-pesi-sao2",
+      "calc-pesi-cancer",
+      "calc-pesi-heart-failure",
+      "calc-pesi-lung-disease",
+      "calc-pesi-ams",
+      "calc-hestia-hemodynamic-unstable",
+      "calc-hestia-thrombolysis-needed",
+      "calc-hestia-active-bleeding",
+      "calc-hestia-oxygen-need",
+      "calc-hestia-pe-on-anticoag",
+      "calc-hestia-severe-pain",
+      "calc-hestia-med-social-admit",
+      "calc-hestia-crcl-low",
+      "calc-hestia-liver-impairment",
+      "calc-hestia-pregnant",
+      "calc-hestia-hit",
+      "calc-bova-hr",
+      "calc-bova-sbp",
+      "calc-bova-troponin",
+      "calc-bova-rv",
+      "map",
+      "lactate",
+      "vasopressors",
+      "persistent-hypotension",
+      "transient-hypotension",
+      "cardiac-arrest",
+      "renal-hypoperfusion",
+      "mental-status",
+      "low-cardiac-index",
+      "shock-score",
+      "unable-lie-flat",
+      "rv-dysfunction",
+      "troponin",
+      "bnp",
+      "oxygen-sat",
+      "rr",
+      "oxygen-support",
+      "bleed-absolute-active",
+      "bleed-absolute-ich",
+      "bleed-absolute-dissection",
+      "bleed-absolute-neuro-surgery",
+      "bleed-absolute-intracranial",
+      "bleed-relative-coagulopathy",
+      "bleed-relative-htn",
+      "bleed-relative-recent-surgery",
+      "bleed-relative-serious-trauma",
+      "bleed-relative-pregnancy",
+      "bleed-relative-gi-bleed",
+      "pregnancy",
+      "breastfeeding",
+      "active-cancer",
+      "aps",
+      "severe-ckd"
     ];
     const INPUT_VALIDATION_SPECS = [
       { id: "weight-kg", key: "weightKg", label: "weight", min: 20, max: 350, unit: "kg" },
@@ -1491,6 +1574,58 @@
       });
     }
 
+    function renderPendingAlerts() {
+      alertsEl.innerHTML = "";
+      const span = document.createElement("span");
+      span.className = "chip";
+      span.style.background = "#f5f6f7";
+      span.style.borderColor = "#d7ddda";
+      span.style.color = "#53605a";
+      span.textContent = "Awaiting clinical inputs.";
+      alertsEl.appendChild(span);
+    }
+
+    function defaultSelectValue(el) {
+      const defaultOption = Array.from(el.options).find((option) => option.defaultSelected) || el.options[0];
+      return defaultOption ? defaultOption.value : "";
+    }
+
+    function hasClinicalCriteriaInput() {
+      return CLINICAL_CRITERIA_INPUT_IDS.some((id) => {
+        const el = document.getElementById(id);
+        if (!el) return false;
+
+        if (el.type === "checkbox" || el.type === "radio") {
+          return el.checked !== el.defaultChecked;
+        }
+
+        if (el.tagName === "SELECT") {
+          return el.value !== defaultSelectValue(el);
+        }
+
+        const currentValue = (el.value || "").trim();
+        const defaultValue = (el.defaultValue || "").trim();
+        return currentValue !== "" && currentValue !== defaultValue;
+      });
+    }
+
+    function initialPendingClassification() {
+      return {
+        category: "Pending",
+        base: "initial-pending",
+        family: "U",
+        hasScore: false,
+        lowSeverity: false,
+        elevatedSeverity: false,
+        rvPositive: false,
+        biomarkerPositive: false,
+        hypoperfusionMarkers: false,
+        significantResp: false,
+        respiratoryFailure: false,
+        pendingSeverityScore: false
+      };
+    }
+
     function derivePatientAge(raw) {
       if (raw.scoreMode === "calc-spesi" && raw.calcSpesiAge !== null) return raw.calcSpesiAge;
       if (raw.scoreMode === "calc-pesi" && raw.calcPesiAge !== null) return raw.calcPesiAge;
@@ -1791,6 +1926,20 @@
       return lines.join("\n");
     }
 
+    function buildPendingExternalNarrative(data) {
+      const scrubbed = scrubPotentialIdentifiers(data.caseNarrative || "");
+      const caseText = scrubbed.cleaned || "[No case discussion entered]";
+      return [
+        "DE-IDENTIFIED PE CASE NARRATIVE FOR EXTERNAL AI TOOL",
+        "Do not add patient identifiers in prompts or follow-up messages.",
+        "",
+        "Case Discussion (Scrubbed)",
+        caseText,
+        "",
+        "Structured PE category and management recommendations are pending until clinical criteria are entered."
+      ].join("\n");
+    }
+
     function classify(data) {
       const hasScore = data.pesi !== null || data.spesi !== null || data.hestia !== null;
       const lowByPesi = data.pesi !== null && data.pesi <= 85;
@@ -1871,6 +2020,7 @@
     }
 
     function categoryDescriptor(base) {
+      if (base === "initial-pending") return "Clinical category pending until clinical criteria are entered";
       if (base === "BC-pending") return "Symptomatic stable acute PE pending clinical severity score";
       const family = base.charAt(0);
       if (family === "A") return "Asymptomatic / incidental acute PE profile";
@@ -1896,6 +2046,52 @@
       if (data.spesi !== null && data.spesi === 0) thresholds.push("sPESI 0");
       if (data.bova !== null && data.bova <= 4) thresholds.push("Bova <=4");
       return thresholds;
+    }
+
+    function deriveScoreSbp(data) {
+      if (data.scoreMode === "calc-spesi" && data.calcSpesiSbp !== null) return data.calcSpesiSbp;
+      if (data.scoreMode === "calc-pesi" && data.calcPesiSbp !== null) return data.calcPesiSbp;
+      if (data.scoreMode === "calc-bova" && data.calcBovaSbp !== null) return data.calcBovaSbp;
+      return null;
+    }
+
+    function hiPeithoAssessment(data, cls) {
+      const scoreSbp = deriveScoreSbp(data);
+      const hrCriterion = data.scoreHr !== null && data.scoreHr > 100;
+      const sbpCriterion =
+        (scoreSbp !== null && scoreSbp < 110) ||
+        data.transientHypotension ||
+        data.persistentHypotension;
+      const rrCriterion = data.rr !== null && data.rr > 20;
+      const highSupportCriterion = ["o2-high", "hfnc", "niv", "imv"].includes(data.oxygenSupport);
+      const confirmedDiagnosis = data.confirmedPe === "confirmed";
+      const noThrombolysisContraindication = !data.highBleedingRisk && !data.contraThrombolysis;
+      const metLabels = [];
+      if (hrCriterion) metLabels.push("HR >100 bpm");
+      if (sbpCriterion) metLabels.push("SBP <110 mm Hg");
+      if (rrCriterion) metLabels.push("RR >20/min");
+      if (highSupportCriterion) metLabels.push(">6 L/min oxygen, HFNC, NIV, or IMV");
+      const eligibleCategory = ["C2", "C3", "D1", "D2"].includes(cls.base);
+      const proximalClotBurden = ["segmental", "saddle"].includes(data.clotLocation);
+      return {
+        confirmedDiagnosis,
+        noThrombolysisContraindication,
+        eligibleCategory,
+        proximalClotBurden,
+        featureCount: metLabels.length,
+        metLabels,
+        absoluteEligible:
+          confirmedDiagnosis &&
+          eligibleCategory &&
+          proximalClotBurden &&
+          metLabels.length >= 2 &&
+          noThrombolysisContraindication,
+        relativeEligible:
+          confirmedDiagnosis &&
+          eligibleCategory &&
+          proximalClotBurden &&
+          metLabels.length >= 2
+      };
     }
 
     function buildPertConsensus(data, cls) {
@@ -1973,6 +2169,7 @@
         (data.map === null || data.map >= 65);
       const scoreHrTachy = data.scoreHr !== null && data.scoreHr > 110;
       const relativeThrombolysisConcern = data.relativeBleedingRisk && !data.contraThrombolysis;
+      const hiPeitho = hiPeithoAssessment(data, cls);
       const pushLmwhHighWeightSummary = () => {
         if (extremeLmwhWeight) {
           summary.push(`If LMWH is selected at weight ${data.weightKg} kg, consider peak anti-Xa monitoring (3-5 hours after dose at steady state) with pharmacy-guided dose review.`);
@@ -2074,6 +2271,10 @@
         pushLmwhHighWeightSummary();
       }
 
+      if (hiPeitho.absoluteEligible) {
+        summary.push(`Advanced therapy (HI-PEITHO): this confirmed category ${cls.base} profile meets at least two HI-PEITHO clinical severity features (${hiPeitho.metLabels.join(", ")}). Catheter-directed thrombolysis using the HI-PEITHO regimen may be reasonable over anticoagulation alone; if CDL is not readily available, reduced-dose systemic alteplase 4 mg IV bolus followed by 2 mg/hour for 7 hours may be reasonable (HI-PEITHO, NEJM 2026; DOI: 10.1056/NEJMoa2516567).`);
+      }
+
       if (data.recurrentOnTherapy) {
         summary.push(`Breakthrough PE: evaluate immediately for clinical and pharmacologic contributors to recurrence. If recurrence occurred despite adherence to therapeutic-intensity anticoagulation, switching to an alternative anticoagulant drug class is reasonable; if recurrence occurred on reduced-dose DOAC therapy, returning to full-dose DOAC within the same class is reasonable.${breakthroughPeFilterEligible ? " In AHA/ACC categories B-E, retrievable IVC filter placement may also be considered to reduce short-term recurrent PE." : ""}${data.activeCancer ? " If active cancer and recurrence occurred despite therapeutic LMWH, LMWH dose escalation by 20%-25% is reasonable." : ""}`);
       }
@@ -2160,6 +2361,10 @@
 
       if (suspectedHighRiskDelayedImaging) {
         actions.push("[COR 2a] With suspected acute PE, an AHA/ACC category C2 or higher profile, and low bleeding risk, initiate therapeutic anticoagulation while imaging is delayed or not immediately accessible.");
+      }
+
+      if (hiPeitho.absoluteEligible) {
+        actions.push("[Operational] HI-PEITHO-style escalation is reasonable to evaluate now: if catheter-directed thrombolysis is available, use the study-style low-dose catheter regimen; if CDL is not readily available, reduced-dose systemic alteplase may be a reasonable alternative.");
       }
 
       if (["C3", "D1", "D2", "E1", "E2"].includes(cls.base)) {
@@ -2280,6 +2485,7 @@
         (data.map === null || data.map >= 65);
       const scoreHrTachy = data.scoreHr !== null && data.scoreHr > 110;
       const pendingSeverityScore = cls.pendingSeverityScore;
+      const hiPeitho = hiPeithoAssessment(data, cls);
 
       rationale.push(`Computed AHA/ACC category: ${cls.category} (${categoryDescriptor(cls.base)}).`);
       rationale.push(`Symptoms: ${data.symptomatic === "yes" ? "present" : "not reported"}; incidental discovery: ${data.incidental ? "yes" : "no"}.`);
@@ -2326,6 +2532,10 @@
 
       if (subsegmentalDisproportionatePresentation) {
         rationale.push("Subsegmental-only PE with D/E physiology suggests the severity of presentation may be out of proportion to embolic burden and may be multifactorial.");
+      }
+
+      if (hiPeitho.relativeEligible) {
+        rationale.push(`HI-PEITHO features present: ${hiPeitho.featureCount}/4 (${hiPeitho.metLabels.join(", ")}).`);
       }
 
       if (normotensiveIntermediateHigh && scoreHrTachy) {
@@ -2388,6 +2598,10 @@
 
       if (clotInTransitAdvancedTherapy) {
         recommendations.push("[COR 2a] With free-floating right atrial and/or RV clot-in-transit, advanced therapies are reasonable over anticoagulation alone to reduce the risk of clinical deterioration.");
+      }
+
+      if (hiPeitho.absoluteEligible) {
+        recommendations.push(`[Operational] In confirmed category ${cls.base} PE with at least two HI-PEITHO clinical severity features (${hiPeitho.metLabels.join(", ")}), catheter-directed thrombolysis using the HI-PEITHO regimen may be reasonable over anticoagulation alone; if CDL is not readily available, reduced-dose systemic alteplase 4 mg IV bolus followed by 2 mg/hour for 7 hours may be reasonable (HI-PEITHO, NEJM 2026; DOI: 10.1056/NEJMoa2516567).`);
       }
 
       if (data.contraThrombolysis) {
@@ -2510,6 +2724,7 @@
       const breakthroughPeFilterEligible =
         data.recurrentOnTherapy &&
         ["B", "C", "D", "E"].includes(cls.family);
+      const hiPeitho = hiPeithoAssessment(data, cls);
       const lmwhLikely =
         canAnticoag && (
           data.pregnancy ||
@@ -2641,6 +2856,11 @@
         if (unstableProfile) {
           medication.push("Hemodynamic instability: avoid DOAC initiation until stabilized; use parenteral anticoagulation-first strategy.");
         }
+      }
+
+      if (hiPeitho.absoluteEligible) {
+        medication.push("HI-PEITHO catheter-directed thrombolysis option: alteplase 2 mg bolus per catheter, then 1 mg/hour per catheter for 7 hours (total 9 mg for unilateral treatment or 18 mg for bilateral treatment) (HI-PEITHO, NEJM 2026; DOI: 10.1056/NEJMoa2516567).");
+        medication.push("If CDL is not readily available, reduced-dose systemic thrombolysis option: alteplase 4 mg IV bolus followed by 2 mg/hour IV infusion for 7 hours.");
       }
 
       if (reperfusionCandidate && lysisEligible) {
@@ -2785,6 +3005,10 @@
 
       if (lmwhLikely && extremeLmwhWeight && !(data.breastfeeding || severeRenalExtremeWeightPregnancy || severeRenalExtremeWeightC1 || severeRenalExtremeWeightC2ToE2)) {
         monitoring.push(`If LMWH is selected at weight ${data.weightKg} kg, consider peak anti-Xa monitoring (3-5 hours after dose at steady state) with pharmacy-guided dose review.`);
+      }
+
+      if (hiPeitho.absoluteEligible) {
+        monitoring.push("If a HI-PEITHO-style catheter-directed lysis strategy or reduced-dose systemic alteplase is used, maintain ICU/high-acuity monitoring with frequent neurologic checks, bleeding assessment, oxygen reassessment, and perfusion trending during infusion and early after completion.");
       }
 
       if (reperfusionCandidate && lysisEligible) {
@@ -2991,7 +3215,27 @@
       syncRespiratoryInputsFromScoreInputs();
       const data = gatherData();
       data.inputValidationWarnings = applyInputValidationFlags(data);
-      const cls = classify(data);
+      const hasCriteriaInput = hasClinicalCriteriaInput();
+      const cls = hasCriteriaInput ? classify(data) : initialPendingClassification();
+
+      scoreSummaryEl.textContent = data.scoreSummary;
+
+      riskBadge.className = `risk-badge ${severityClass(cls.family)}`;
+      riskBadge.textContent = cls.category;
+      if (!hasCriteriaInput) {
+        overallEl.textContent = "Calculated PE category pending until clinical criteria are entered.";
+        renderList(recommendationsEl, [], "Overall recommendation pending until clinical criteria are entered.");
+        renderList(actionListEl, [], "Action bundle will populate after input.");
+        renderList(medicationListEl, [], "Medication recommendations will populate after input.");
+        renderList(monitoringListEl, [], "Monitoring recommendations will populate after input.");
+        renderList(backupListEl, [], "Escalation pathway will populate after input.");
+        renderList(rationaleEl, [], "Rationale will populate after input.");
+        renderPendingAlerts();
+        narrativeTextEl.value = buildPendingExternalNarrative(data);
+        planTextEl.value = "Enter clinical data to generate the PERT documentation draft.";
+        return;
+      }
+
       const pert = buildPertConsensus(data, cls);
       const bundle = buildRecommendations(data, cls);
       const medicationPlan = buildMedicationMonitoringPlan(data, cls);
@@ -3015,10 +3259,6 @@
         notes: notesWithStrength
       };
 
-      scoreSummaryEl.textContent = data.scoreSummary;
-
-      riskBadge.className = `risk-badge ${severityClass(cls.family)}`;
-      riskBadge.textContent = cls.category;
       overallEl.textContent = `${categoryDescriptor(cls.base)}. Recommendations below should be interpreted with bedside judgment and final treating-team consensus.`;
 
       renderList(recommendationsEl, overallRecommendations, "Enter clinical data to generate recommendations.");
